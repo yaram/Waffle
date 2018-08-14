@@ -1,5 +1,6 @@
+import fs from 'fs';
 import chai from 'chai';
-import {arrayIntersection, eventParseResultToArray, isWarningMessage} from '../../lib/utils';
+import {arrayIntersection, eventParseResultToArray, isWarningMessage, touch, readFileContent} from '../../lib/utils';
 
 const {expect} = chai;
 
@@ -44,6 +45,24 @@ describe('Utils', () => {
 
     it('error message', async () => {
       expect(isWarningMessage(errorMessage)).to.be.false;
+    });
+  });
+
+  describe('touch', () => {
+    const filePath = 'test/.eslintrc.json';
+
+    it('updates modification date', async () => {
+      const beforeModificationDate = new Date(fs.statSync(filePath).mtime);
+      touch(filePath);
+      const afterModificationDate = new Date(fs.statSync(filePath).mtime);
+      expect(afterModificationDate).to.be.above(beforeModificationDate);
+    });
+
+    it('does not modify content', async () => {
+      const contentBefore = readFileContent(filePath);
+      touch(filePath);
+      const contentAfter = readFileContent(filePath);
+      expect(contentBefore).to.be.eq(contentAfter);
     });
   });
 });
