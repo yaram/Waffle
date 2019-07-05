@@ -1,9 +1,10 @@
 import Ganache, { GanacheOpts } from 'ganache-core';
-import {ContractFactory, providers, Contract, Wallet} from 'ethers';
-import matchers from './matchers';
+import {ContractFactory, providers, Wallet} from 'ethers';
+import matchers from './matchers/matchers';
 import defaultAccounts from './config/defaultAccounts';
 import defaultDeployOptions from './config/defaultDeployOptions';
 import {linkSolidity4, linkSolidity5, LinkableContract} from './link';
+import './matchers/matchertypes';
 
 const defaultGanacheOptions = {accounts: defaultAccounts};
 
@@ -27,17 +28,17 @@ export async function deployContract(
   args: any[] = [],
   overrideOptions: providers.TransactionRequest = {}
 ) {
-  const {abi} = contractJSON;
-  const bytecode = `0x${contractJSON.evm.bytecode.object}`;
-  const factory = new ContractFactory(abi, bytecode, wallet);
-  const deployTransaction = {
+  const factory = new ContractFactory(
+    contractJSON.abi,
+    contractJSON.evm.bytecode,
+    wallet
+  );
+  const contract = await factory.deploy(...args, {
     ...defaultDeployOptions,
-    ...overrideOptions,
-    ...factory.getDeployTransaction(...args)
-  };
-  const tx = await wallet.sendTransaction(deployTransaction);
-  const receipt = await wallet.provider.getTransactionReceipt(tx.hash);
-  return new Contract(receipt.contractAddress, abi, wallet);
+    ...overrideOptions
+  });
+  await contract.deployed();
+  return contract;
 }
 
 export const link = (contract: LinkableContract, libraryName: string, libraryAddress: string) => {
@@ -57,24 +58,30 @@ type Fixture<T> = (provider: providers.Provider, wallets: Wallet[]) => Promise<T
 interface Snapshot<T> {
   fixture: Fixture<T>;
   data: T;
-  id: number;
+  id: string;
+  provider: providers.Web3Provider;
+  wallets: Wallet[];
 }
 
-export function createFixtureLoader(provider = createMockProvider(), wallets?: Wallet[]) {
+export function createFixtureLoader(overrideProvider?: providers.Web3Provider, overrideWallets?: Wallet[]) {
   const snapshots: Snapshot<any>[] = [];
 
   return async function load<T>(fixture: Fixture<T>): Promise<T> {
-    const matchingSnapshot = snapshots.find((snapshot) => snapshot.fixture === fixture);
-    if (matchingSnapshot) {
-      await provider.send('evm_revert', [matchingSnapshot.id]);
-      await provider.send('evm_snapshot', []);
-      return matchingSnapshot.data;
+    const snapshot = snapshots.find((snapshot) => snapshot.fixture === fixture);
+    if (snapshot) {
+      await snapshot.provider.send('evm_revert', [snapshot.id]);
+      snapshot.id = await snapshot.provider.send('evm_snapshot', []);
+      return snapshot.data;
+    } else {
+      const provider = overrideProvider || createMockProvider();
+      const wallets = overrideWallets || getWallets(provider);
+
+      const data = await fixture(provider, wallets);
+      const id = await provider.send('evm_snapshot', []);
+
+      snapshots.push({fixture, data, id, provider, wallets});
+      return data;
     }
-    const data = await fixture(provider, wallets || getWallets(provider));
-    const id = await provider.send('evm_snapshot', []);
-    snapshots.push({fixture, data, id});
-    return data;
   };
 }
-
 export const loadFixture = createFixtureLoader();

@@ -1,15 +1,16 @@
 [![Build Status](https://travis-ci.com/EthWorks/Waffle.svg?token=xjj4U84eSFwEsYLTc5Qe&branch=master)](https://travis-ci.com/EthWorks/Waffle)
+[![](https://img.shields.io/npm/v/ethereum-waffle.svg)](https://www.npmjs.com/package/ethereum-waffle)
 
 ![Ethereum Waffle](https://raw.githubusercontent.com/EthWorks/Waffle/master/docs/images/logo.png)
 
 Library for writing and testing smart contracts.
 
-Sweeter, simpler, faster than Truffle.
+Sweeter, simpler and faster than Truffle.
 
 ## Philosophy
 * __Simpler__: Minimalistic, few dependencies.
 * __Sweeter__: Nice syntax, easy to extend.
-* __Faster__: Strong focus on the speed of tests execution.
+* __Faster__: Strong focus on the speed of test execution.
 
 ## Features:
 * Sweet set of chai matchers, e.g.:
@@ -19,36 +20,46 @@ Sweeter, simpler, faster than Truffle.
   * `import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";`
 * Fixtures that help write fast and maintainable test suites, e.g.:
   * `const {token} = await loadFixture(standardTokenWithBalance);`
-* Sub-second compilation with native and dockerized solc
+* Customizable compilation options with native solc, dockerized solc and any version of solc-js loaded remotely at compiled time
+* Support for promise-based configuration, e.g.:
+  * use native solc binary for fast compilation in CI environment
+  * use solc-js based on contract versions detected (async)
 * Support for TypeScript
 * [Documentation](https://ethereum-waffle.readthedocs.io/en/latest/)
 
 
 ## Documentation
-Documentation available [here](https://ethereum-waffle.readthedocs.io/en/latest/).
+Documentation is available [here](https://ethereum-waffle.readthedocs.io/en/latest/).
 
 ## Installation:
-To start using with npm, type:
+To get started using npm, type:
 ```sh
-npm i ethereum-waffle
+npm i ethereum-waffle -D
 ```
 
 or with Yarn:
 ```sh
-yarn add ethereum-waffle
+yarn add ethereum-waffle -D
 ```
 
 ## Step by step guide
 
 ### Add external dependency:
-To add external library add npm to your project:
+To add an external library install it using npm:
 
 ```sh
-npm i open-zeppelin
+npm i openzeppelin-solidity -D
 ```
 
+or with yarn:
+
+```sh
+yarn add openzeppelin-solidity -D
+```
+
+
 ### Example contract
-Below is example contract written in Solidity. Place it in `contracts` directory of your project:
+Below is an example contract written in Solidity. Place it in `contracts/BasicTokenMock.sol` file of your project:
 
 ```solidity
 pragma solidity ^0.5.1;
@@ -65,14 +76,13 @@ contract BasicTokenMock is ERC20 {
 ```
 
 ### Example test
-Belows is example test written for the contract above written with Waffle. Place it in `test` directory of your project:
+Below is an example test written for the contract above compiled with Waffle. Place it under `test/basicTokenMock.js` file of your project:
 
 ```js
-import chai from 'chai';
-import {createMockProvider, deployContract, getWallets, solidity} from 'ethereum-waffle';
-import BasicTokenMock from './build/BasicTokenMock';
-import MyLibrary from './build/MyLibrary';
-import LibraryConsumer from './build/LibraryConsumer';
+const chai = require('chai');
+const {createMockProvider, deployContract, getWallets, solidity} = require('ethereum-waffle');
+const BasicTokenMock = require('../build/BasicTokenMock');
+
 
 chai.use(solidity);
 const {expect} = chai;
@@ -114,18 +124,32 @@ describe('INTEGRATION: Example', () => {
 });
 ```
 
-### Compile
-To compile contracts type:
+Note: You will also need to install following dependencies with npm to run the example above:
+
+```sh
+npm i chai -D
+npm i mocha -D
+```
+
+Or with yarn:
+
+```sh
+yarn add mocha -D
+yarn add chai -D
+```
+
+### Compiling
+To compile your smart contracts run:
 ```sh
 npx waffle
 ```
 
-To compile using a custom configuration file:
+To compile using a custom configuration file run:
 ```sh
 npx waffle config.json
 ```
 
-Example configuration file looks like this:
+Example configuration file looks like this (all fields optional):
 ```json
 {
   "sourcesPath": "./custom_contracts",
@@ -134,16 +158,21 @@ Example configuration file looks like this:
 }
 ```
 
-### Run tests
-To run test type in the console:
+### Running tests
+To run the tests run the following command:
 ```sh
 mocha
 ```
 
-### Adding a task
-For convince, you can add a task to your `package.json`. In the sections `scripts`, add the following line:
-```json
-  "test": "waffle && test"
+### Adding an npm script
+For convinience, you can add the following to your `package.json`:
+```
+{
+  ...,
+  "scripts": {
+    "test": "waffle && mocha"
+  }
+}
 ```
 
 Now you can build and test your contracts with one command:
@@ -169,6 +198,7 @@ Make sure you have test coverage for any new features.
 ### Running tests
 Note: To make end-to-end test pass, you need to:
 * have Docker installed, up and running
+* have Ethereum stable docker image pulled, if not run `docker pull ethereum/solc:stable`
 * have native solidity 0.5.* installed
 
 To run tests type:
@@ -181,10 +211,16 @@ To run linter type:
 yarn lint
 ```
 
+Building documentation:
+```sh
+cd docs
+make html
+```
+
 
 ## Roadmap
 
-### Waffle 2.0 (currently in beta)
+### Waffle 2.0
 - [x] New matcher: changeBalance (see [#9](https://github.com/EthWorks/Waffle/issues/9))
 - [x] Faster compilation with native and dockerized solc (aside from solcjs)
 - [x] Documentation
@@ -198,5 +234,4 @@ yarn lint
 - [ ] Debugging and profiling
 
 ## License
-Universal Login SDK is released under the [MIT License](https://opensource.org/licenses/MIT).
-
+Waffle is released under the [MIT License](https://opensource.org/licenses/MIT).

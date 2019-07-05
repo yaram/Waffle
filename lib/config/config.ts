@@ -6,6 +6,9 @@ export interface Config {
   'docker-tag'?: string;
   solcVersion?: string;
   legacyOutput?: string;
+  allowedPaths?: string[];
+  compilerOptions?: Record<string, any>;
+  outputType?: 'multiple' | 'combined' | 'all';
 }
 
 const defaultConfig: Config = {

@@ -1,9 +1,10 @@
 import fs from 'fs';
 import fsx from 'fs-extra';
-import path from 'path';
 import {join, resolve} from 'path';
 import {expect} from 'chai';
-import {compile, loadConfig} from '../../lib/compiler';
+import {compileProject} from '../../lib/compiler/compiler';
+import defaultConfig, {Config} from '../../lib/config/config';
+import {loadConfig} from '../../lib/config/loadConfig';
 import {readFileContent, isFile, deepCopy} from '../../lib/utils';
 import {deployContract, link, getWallets, createMockProvider} from '../../lib/waffle';
 
@@ -11,8 +12,10 @@ const configurations = [
   './test/projects/custom/config.js',
   './test/projects/custom/config_native.json',
   './test/projects/custom/config_docker.json',
+  './test/projects/custom/config_promise.js',
   './test/projects/custom_solidity_4/config_solcjs.json',
-  './test/projects/custom_solidity_4/config_docker.json'
+  './test/projects/custom_solidity_4/config_docker.json',
+  './test/projects/custom/config_combined.js'
 ];
 
 const artefacts = [
@@ -25,7 +28,7 @@ const artefacts = [
   'OneAndAHalf.json'
 ];
 
-describe('E2E: Compiler integration', () => {
+describe('E2E: Compiler integration', async () => {
   describe('docker: inside out directory structure', () => {
     before(async () => {
       fsx.removeSync('test/projects/insideOut/build');
@@ -33,7 +36,7 @@ describe('E2E: Compiler integration', () => {
     });
 
     it('compile and produce artefacts', async () => {
-      await compile('config_docker.json');
+      await compileProject('config_docker.json');
       for (const artefact of artefacts) {
         const filePath = join('../build', artefact);
         expect(isFile(filePath), `Expected compilation artefact "${filePath}" to exist.`).to.equal(true);
@@ -46,14 +49,14 @@ describe('E2E: Compiler integration', () => {
   });
 
   for (const configurationPath of configurations)  {
-    const configuration = loadConfig(configurationPath);
+    const configuration = await loadConfig(configurationPath) as any;
     const {name, targetPath, legacyOutput} = configuration;
 
     /* eslint-disable no-loop-func */
     describe(name, () => {
       before(async () => {
         fsx.removeSync(targetPath);
-        await compile(configurationPath);
+        await compileProject(configurationPath);
       });
 
       it('produce output files', async () => {
@@ -81,6 +84,16 @@ describe('E2E: Compiler integration', () => {
             expect(content.bytecode).to.deep.eq(content.evm.bytecode.object);
             expect(content.interface).to.deep.eq(content.abi);
           }
+        });
+      }
+
+      if (['all', 'combined'].includes(configuration.outputType)) {
+        it('produce Combined-Json.json', async () => {
+          const filePath = join(targetPath, 'Combined-Json.json');
+          const content = JSON.parse(readFileContent(filePath));
+          expect(content).to.have.property('contracts');
+          expect(content).to.have.property('sources');
+          expect(content).to.have.property('sourceList');
         });
       }
 

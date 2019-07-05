@@ -24,6 +24,18 @@ Configuration can also be of type js, e.g.:
 
 Native and dockerized solc compiler configuration is described in "Fast compilation" section.
 
+Configuration can even be a Promise in a js, e.g.:
+::
+
+  module.exports = new Promise((resolve, reject) => {
+    resolve({
+      "compiler": "native"
+    });
+  });
+
+.. hint::
+  This is a powerful feature if you want to asynchronously load different compliation configurations in different environments. 
+  For example, you can use native solc in CI for faster compilation, whereas deciding the exact solc-js version locally based on the contract versions being used, since many of those operations are asynchronous, you'll most likely be returning a Promise to waffle to handle. 
 
 Solcjs and version management
 -----------------------------
@@ -50,3 +62,124 @@ You can generate files that are compatible with both current and previous versio
     ...
     "legacyOutput": "true"
   }
+
+
+Custom compiler options
+-----------------------
+To provide custom compiler options in waffle configuration file use compilerOptions section. Example below.
+
+::
+
+  {
+    "compilerOptions": {
+      "evmVersion": "constantinople"
+    },
+    "compiler": "native"
+  }
+
+For detailed list of options go to
+`solidity documentation <https://solidity.readthedocs.io/en/v0.5.1/using-the-compiler.html#using-the-compiler>`_
+(sections: `'Setting the EVM version to target' <https://solidity.readthedocs.io/en/v0.5.1/using-the-compiler.html#setting-the-evm-version-to-target>`_,
+`'Target options' <https://solidity.readthedocs.io/en/v0.5.1/using-the-compiler.html#target-options>`_ and `'Compiler Input and Output JSON Description' <https://solidity.readthedocs.io/en/v0.5.1/using-the-compiler.html#compiler-input-and-output-json-description>`_).
+
+
+KLAB compatibility
+------------------
+
+The default compilation process is not compatible with KLAB
+(a formal verification tool, see: https://github.com/dapphub/klab). To compile contracts to work with KLAB one must:
+
+1. Set appropriate compiler options, i.e.:
+
+::
+
+  compilerOptions: {
+    outputSelection: {
+      "*": {
+        "*": [ "evm.bytecode.object", "evm.deployedBytecode.object",
+               "abi" ,
+               "evm.bytecode.sourceMap", "evm.deployedBytecode.sourceMap" ],
+        
+        "": [ "ast" ]
+      },     
+    }
+  }
+
+
+2. Set appropriate output type. We support two types: one (default) generates single file for each contract
+and second (KLAB friendly) generates one file (Combined-Json.json) combining all contracts. The second type does not meet 
+(in contrary to the first one) all official solidity standards since KLAB requirements are slightly modified.
+To choice of the output is set in config file, i.e.:
+
+::
+
+  outputType: 'combined'
+
+Possible options are:
+- `'multiple'`: single file for each contract;
+- `'combined'`: one KLAB friendly file;
+-  `'all'`: generates both above outputs.
+
+An example of full KLAB friendly config file:
+
+::
+
+  module.exports = {
+    compiler: process.env.WAFFLE_COMPILER,
+    legacyOutput: true,
+    outputType: 'all',
+    compilerOptions: {
+      outputSelection: {
+        "*": {
+          "*": [ "evm.bytecode.object", "evm.deployedBytecode.object",
+                 "abi" ,
+                 "evm.bytecode.sourceMap", "evm.deployedBytecode.sourceMap" ],
+
+          "": [ "ast" ]
+        },     
+     }
+   }
+  };
+
+Monorepo
+--------
+Waffle works well with mono-repositories. It is enough to set up common npmPath in the configuration file to make it work.
+We recommend using `yarn workspaces <https://yarnpkg.com/lang/en/docs/workspaces/>`_ and `wsrun <https://github.com/whoeverest/wsrun>`_ for monorepo management.
+
+Lernajs + Native solc
+^^^^^^^^^^^^^^^^^^^^^
+Waffle works with `lerna <https://lernajs.io/>`_, but require additional configuration.
+When lerna cross-links npm packages in monorepo, it creates symbolic links to original catalog.
+That leads to sources files located beyond allowed paths. This process breaks compilation with native solc.
+
+
+If you see a message like below in your monorepo setup:
+::
+
+  contracts/Contract.sol:4:1: ParserError: Source ".../monorepo/node_modules/YourProjectContracts/contracts/Contract.sol" not found: File outside of allowed directories.
+  import "YourProjectContracts/contracts/Contract.sol";
+
+
+you probably need to add allowedPath to your waffle configuration.
+
+Assuming you have the following setup:
+::
+
+  /monorepo
+    /YourProjectContracts
+      /contracts
+    /YourProjectDapp
+      /contracts
+
+Add to waffle configuration in YourProjectDapp:
+::
+
+  {
+    ...
+    allowedPath: ["../YourProjectContracts"]
+  }
+
+
+That should solve a problem.
+
+Currently Waffle does not support similar feature for dockerized solc.
